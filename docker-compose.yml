@@ -1,9 +1,7 @@
 services:
-  api:
+  app:
     build: .
     container_name: sush-app
     ports:
       - "8080:8080"
-    restart: unless-stopped
-    
-      
+    restart: unless-stopped  
