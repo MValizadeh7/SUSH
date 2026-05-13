@@ -15,7 +15,15 @@ import (
 )
 
 func main() {
-	s := store.New()
+	connStr := os.Getenv("DATABASE_URL")
+	if connStr == "" {
+		connStr = "postgres://sush:sush@localhost:5432/sush?sslmode=disable"
+	}
+
+	s, err := store.New(connStr)
+	if err != nil {
+		log.Fatalf("failed to connect to database: %v", err)
+	}
 	h := handlers.New(s)
 
 	mux := http.NewServeMux()

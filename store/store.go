@@ -1,9 +1,10 @@
 package store
 
 import (
-	"errors"
-	"sync"
+	"database/sql"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 type URLData struct {
@@ -13,62 +14,59 @@ type URLData struct {
 }
 
 type Store struct {
-	mu sync.RWMutex
-	db map[string]*URLData
+	db *sql.DB
 }
 
-func New() *Store {
-	return &Store{db: make(map[string]*URLData)}
+func New(connStr string) (*Store, error) {
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	return &Store{db: db}, nil
 }
 
 func (s *Store) Save(slug string, original string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, exists := s.db[slug]; exists {
-		return errors.New("slug already exists")
-	}
-
-	s.db[slug] = &URLData{
-		OriginalURL: original,
-		CreatedAt:   time.Now(),
-	}
-	return nil
+	_, err := s.db.Exec(
+		"INSERT INTO urls (slug, original_url, clicks, created_at) VALUES ($1, $2, 0, $3)",
+		slug, original, time.Now(),
+	)
+	return err
 }
 
 func (s *Store) Get(slug string) (string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	data, exists := s.db[slug]
-	if !exists {
-		return "", errors.New("slug not found")
+	var original string
+	err := s.db.QueryRow(
+		"SELECT original_url FROM urls WHERE slug = $1", slug,
+	).Scan(&original)
+	if err != nil {
+		return "", err
 	}
-	return data.OriginalURL, nil
+	return original, nil
 }
 
 func (s *Store) IncrementClicks(slug string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if data, exists := s.db[slug]; exists {
-		data.Clicks++
-	}
+	s.db.Exec("UPDATE urls SET clicks = clicks + 1 WHERE slug = $1", slug)
 }
 
 func (s *Store) GetStats(slug string) (int, time.Time, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	data, exists := s.db[slug]
-	if !exists {
-		return 0, time.Time{}, errors.New("slug not found")
+	var clicks int
+	var createdAt time.Time
+	err := s.db.QueryRow(
+		"SELECT clicks, created_at FROM urls WHERE slug = $1", slug,
+	).Scan(&clicks, &createdAt)
+	if err != nil {
+		return 0, time.Time{}, err
 	}
-	return data.Clicks, data.CreatedAt, nil
+	return clicks, createdAt, nil
 }
 
 func (s *Store) Count() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.db)
+	var count int
+	s.db.QueryRow("SELECT COUNT(*) FROM urls").Scan(&count)
+	return count
 }
