@@ -2,6 +2,9 @@ FROM golang:1.25-alpine AS builder
 
 WORKDIR /build
 
+ENV GOPROXY=https://package-mirror.liara.ir/repository/go/
+ENV GOSUMDB=off
+
 COPY go.mod ./
 
 COPY . .
