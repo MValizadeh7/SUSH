@@ -1,0 +1,7 @@
+ALTER USER sush WITH PASSWORD 'sush';
+CREATE TABLE IF NOT EXISTS urls (
+    slug VARCHAR(6) PRIMARY KEY,
+    original_url TEXT NOT NULL,
+    clicks INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
