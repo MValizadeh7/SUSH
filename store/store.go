@@ -1,10 +1,12 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 )
 
 type URLData struct {
@@ -14,20 +16,25 @@ type URLData struct {
 }
 
 type Store struct {
-	db *sql.DB
+	db    *sql.DB
+	cache *redis.Client
 }
 
-func New(connStr string) (*Store, error) {
+func New(connStr, redisAddr string) (*Store, error) {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, err
 	}
-
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
 
-	return &Store{db: db}, nil
+	cache := redis.NewClient(&redis.Options{Addr: redisAddr})
+	if err := cache.Ping(context.Background()).Err(); err != nil {
+		return nil, err
+	}
+
+	return &Store{db: db, cache: cache}, nil
 }
 
 func (s *Store) Save(slug string, original string) error {
@@ -39,14 +46,21 @@ func (s *Store) Save(slug string, original string) error {
 }
 
 func (s *Store) Get(slug string) (string, error) {
-	var original string
-	err := s.db.QueryRow(
-		"SELECT original_url FROM urls WHERE slug = $1", slug,
-	).Scan(&original)
+	ctx := context.Background()
+
+	if url, err := s.cache.Get(ctx, slug).Result(); err == nil {
+		return url, nil
+	}
+
+	var url string
+	err := s.db.QueryRow("SELECT original_url FROM urls WHERE slug = $1", slug).Scan(&url)
 	if err != nil {
 		return "", err
 	}
-	return original, nil
+
+	s.cache.Set(ctx, slug, url, time.Hour)
+
+	return url, nil
 }
 
 func (s *Store) IncrementClicks(slug string) {

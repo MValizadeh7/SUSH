@@ -20,7 +20,12 @@ func main() {
 		connStr = "postgres://sush:sush@localhost:5432/sush?sslmode=disable"
 	}
 
-	s, err := store.New(connStr)
+	redisAddr := os.Getenv("REDIS_URL")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379"
+	}
+
+	s, err := store.New(connStr, redisAddr)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
