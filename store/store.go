@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/lib/pq"
@@ -27,15 +28,22 @@ func New(connStr, redisAddr string) (*Store, error) {
 		return nil, err
 	}
 	if err := db.Ping(); err != nil {
+		db.Close()
 		return nil, err
 	}
 
 	cache := redis.NewClient(&redis.Options{Addr: redisAddr})
 	if err := cache.Ping(context.Background()).Err(); err != nil {
+		db.Close()
 		return nil, err
 	}
 
 	return &Store{db: db, cache: cache}, nil
+}
+
+func (s *Store) Close() {
+	s.cache.Close()
+	s.db.Close()
 }
 
 func Duplicate(err error) bool {
@@ -70,7 +78,9 @@ func (s *Store) Get(slug string) (string, error) {
 }
 
 func (s *Store) IncrementClicks(slug string) {
-	s.db.Exec("UPDATE urls SET clicks = clicks + 1 WHERE slug = $1", slug)
+	if _, err := s.db.Exec("UPDATE urls SET clicks = clicks + 1 WHERE slug = $1", slug); err != nil {
+		log.Printf("click bump failed for %s: %v", slug, err)
+	}
 }
 
 func (s *Store) GetStats(slug string) (int, time.Time, error) {
@@ -87,6 +97,8 @@ func (s *Store) GetStats(slug string) (int, time.Time, error) {
 
 func (s *Store) Count() int {
 	var count int
-	s.db.QueryRow("SELECT COUNT(*) FROM urls").Scan(&count)
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM urls").Scan(&count); err != nil {
+		log.Printf("count query failed: %v", err)
+	}
 	return count
 }
