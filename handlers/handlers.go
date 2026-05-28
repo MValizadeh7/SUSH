@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"net/url"
 	"sush/store"
 	"time"
 )
@@ -66,6 +67,12 @@ func (h *Handler) ShortenHandler(w http.ResponseWriter, r *http.Request) {
 
 	if req.URL == "" {
 		http.Error(w, "url is required", http.StatusBadRequest)
+		return
+	}
+
+	u, err := url.Parse(req.URL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		http.Error(w, "bad url", http.StatusBadRequest)
 		return
 	}
 
