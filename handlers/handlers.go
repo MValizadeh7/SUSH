@@ -70,19 +70,31 @@ func (h *Handler) ShortenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := url.Parse(req.URL)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	u, parseErr := url.Parse(req.URL)
+	if parseErr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		http.Error(w, "bad url", http.StatusBadRequest)
 		return
 	}
 
-	slug, err := generateSlug()
-	if err != nil {
-		http.Error(w, "failed to generate slug", http.StatusInternalServerError)
-		return
-	}
+	var slug string
+	var err error
+	for i := 0; i < 5; i++ {
+		slug, err = generateSlug()
+		if err != nil {
+			http.Error(w, "failed to generate slug", http.StatusInternalServerError)
+			return
+		}
 
-	if err := h.Store.Save(slug, req.URL); err != nil {
+		err = h.Store.Save(slug, req.URL)
+		if err == nil {
+			break
+		}
+		if !store.Duplicate(err) {
+			http.Error(w, "failed to save url", http.StatusInternalServerError)
+			return
+		}
+	}
+	if err != nil {
 		http.Error(w, "failed to save url", http.StatusInternalServerError)
 		return
 	}

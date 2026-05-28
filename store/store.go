@@ -3,9 +3,10 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -35,6 +36,11 @@ func New(connStr, redisAddr string) (*Store, error) {
 	}
 
 	return &Store{db: db, cache: cache}, nil
+}
+
+func Duplicate(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == "23505"
 }
 
 func (s *Store) Save(slug string, original string) error {
