@@ -11,7 +11,8 @@ import (
 )
 
 type Handler struct {
-	Store *store.Store
+	Store   *store.Store
+	BaseURL string
 }
 
 type ShortenRequest struct {
@@ -42,8 +43,8 @@ func generateSlug() (string, error) {
 	return string(slug), nil
 }
 
-func New(s *store.Store) *Handler {
-	return &Handler{Store: s}
+func New(s *store.Store, baseURL string) *Handler {
+	return &Handler{Store: s, BaseURL: baseURL}
 }
 
 func (h *Handler) HealthHandler(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +83,7 @@ func (h *Handler) ShortenHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(ShortenResponse{
-		ShortURL: "http://localhost:8080/" + slug,
+		ShortURL: h.BaseURL + "/" + slug,
 	})
 }
 

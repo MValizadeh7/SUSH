@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,11 +26,17 @@ func main() {
 		redisAddr = "localhost:6379"
 	}
 
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:8080"
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+
 	s, err := store.New(connStr, redisAddr)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
-	h := handlers.New(s)
+	h := handlers.New(s, baseURL)
 
 	mux := http.NewServeMux()
 
@@ -47,7 +54,7 @@ func main() {
 
 	// start server in background
 	go func() {
-		fmt.Println("sush is up at http://localhost:8080")
+		fmt.Println("sush is up at", baseURL)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server died: %v", err)
 		}
